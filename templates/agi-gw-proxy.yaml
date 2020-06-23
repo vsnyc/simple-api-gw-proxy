@@ -1,0 +1,119 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: Generate HTML Documentation from CloudFormation template
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Input configuration
+        Parameters:
+          - TemplatesBucket
+          - APIName
+    ParameterLabels:
+      TemplatesBucket:
+        default: Templates bucket
+      APIName:
+        default: API Name
+Parameters:
+  TemplatesBucket:
+    Type: String
+    Description: Pre-existing S3 bucket where the proxy template and swagger definitions are privately stored
+    Default: ''
+  APIName:
+    Type: String
+    Description: Descriptive name for your API
+    Default: 'Proxy API'
+
+Conditions:
+  TemplatesBucketCondition: !Not
+    - !Equals
+      - !Ref TemplatesBucket
+      - ''
+
+Resources:
+
+
+  ExampleLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+
+  CFNDocApiGatewayCloudWatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
+
+  ExampleFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: index.lambda_handler
+      Runtime: python3.7
+      InlineCode: |
+        import json
+        def lambda_handler(event, context):
+            # TODO implement
+            resp = {
+              'statusCode': 200,
+              'headers': {
+                  'Content-Type': 'application/json',
+              }
+            }
+            return resp
+      Description: 'Dummy lambda function, returns status code 200'
+      MemorySize: 128
+      Timeout: 180
+      Role: !GetAtt 'ExampleLambdaRole.Arn'
+
+  ProxyApi:
+    DependsOn: ExampleFunction
+    Type: 'AWS::Serverless::Api'
+    Properties:
+      StageName: prod
+      DefinitionBody:
+        'Fn::Transform':
+          Name: 'AWS::Include'
+          Parameters:
+            Location: !Sub s3://${TemplatesBucket}/simple-api-gw-proxy/templates/proxy-swagger-apigw.yaml
+
+  ConfigLambdaPermission:
+    Type: "AWS::Lambda::Permission"
+    DependsOn:
+    - ExampleFunction
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ExampleFunction
+      Principal: apigateway.amazonaws.com
+
+Outputs:
+  ExampleFunction:
+    Description: Example function
+    Value: !Ref ExampleFunction
+
+  ProxyApi:
+    Description: Proxy API name.
+    Value: !Ref ProxyApi
+
+  ProxyApiEndpoint:
+    Description: CloudFormation table generator API URL, supply a valid template url at the end.
+    Value: !Sub https://${ProxyApi}.execute-api.${AWS::Region}.amazonaws.com/prod/wh
