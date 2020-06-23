@@ -17,11 +17,11 @@ Metadata:
 Parameters:
   TemplatesBucket:
     Type: String
-    Description: Pre-existing S3 bucket where the proxy template and swagger definitions are privately stored
+    Description: Pre-existing S3 bucket where the proxy template and swagger definitions are privately stored.
     Default: ''
   APIName:
     Type: String
-    Description: Descriptive name for your API
+    Description: Descriptive name for your API.
     Default: 'Proxy API'
 
 Conditions:
